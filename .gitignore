@@ -1,0 +1,40 @@
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Your audio and your transcripts. Both are almost always someone's
+# copyrighted work -- keep them out of the repository.
+input/
+output/
+*.mp3
+*.m4a
+*.m4b
+*.wav
+*.flac
+*.ogg
+*.opus
+*.aac
+*.wma
+*.epub
+*.srt
+
+# Model weights land in the HF cache, but just in case
+*.bin
+*.ct2
+models/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

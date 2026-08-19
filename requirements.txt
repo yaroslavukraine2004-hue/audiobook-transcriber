@@ -1,0 +1,11 @@
+# Core
+faster-whisper==1.2.1
+
+# Drag-and-drop for the Tkinter GUI. Optional -- the app falls back to a
+# Browse button if it is missing.
+tkinterdnd2==0.6.2
+
+# CUDA runtime for CTranslate2 on Windows/Linux with an NVIDIA GPU.
+# Skip these two if you are running on CPU only.
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.24.0.43

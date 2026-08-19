@@ -1,0 +1,9 @@
+# Normalise to LF in the repository; check out native on each platform.
+* text=auto eol=lf
+
+# Windows launchers must keep CRLF or cmd.exe misparses them.
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.epub binary
