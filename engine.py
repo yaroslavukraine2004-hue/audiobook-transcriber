@@ -251,7 +251,8 @@ def fmt_ts(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def write_outputs(segments: list[Segment], outdir: Path, stem: str) -> dict[str, Path]:
+def write_outputs(segments: list[Segment], outdir: Path, stem: str,
+                  language: str | None = None) -> dict[str, Path]:
     outdir.mkdir(parents=True, exist_ok=True)
     txt = outdir / f"{stem}.txt"
     srt = outdir / f"{stem}.srt"
@@ -284,7 +285,9 @@ def write_outputs(segments: list[Segment], outdir: Path, stem: str) -> dict[str,
     try:
         import epub as epub_mod
 
-        out["epub"] = epub_mod.build_epub(payload, outdir / f"{stem}.epub", stem)
+        out["epub"] = epub_mod.build_epub(
+            payload, outdir / f"{stem}.epub", stem,
+            language=language or epub_mod.DEFAULT_LANG)
     except Exception as exc:  # noqa: BLE001
         print(f"\n[warn] epub not written: {exc}")
 
@@ -390,7 +393,7 @@ def transcribe_file(
         audio_done = end
 
     report(Progress("write", 1.0, "Writing .txt / .srt / .json", duration, duration))
-    paths = write_outputs(all_segments, outdir, src.stem)
+    paths = write_outputs(all_segments, outdir, src.stem, language)
 
     if not keep_wav:
         wav.unlink(missing_ok=True)

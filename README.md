@@ -119,18 +119,41 @@ python epub.py "output/book.json" --list-headings   # preview detection
 
 ### Chapter detection
 
-Matches `глава|часть|ступень|раздел|книга|том|урок|лекция` plus a numeral or
-Russian ordinal, and standalone words like `введение|пролог|эпилог`. A heading
-only counts at the start of a sentence — otherwise prose such as "in this
-chapter we will…" would split the book.
+Nine languages are supported out of the box:
 
-**The built-in patterns are Russian.** For other languages, supply your own:
+| | | |
+|---|---|---|
+| `ru` Russian | `en` English | `de` German |
+| `uk` Ukrainian | `es` Spanish | `it` Italian |
+| `pl` Polish | `fr` French | `pt` Portuguese |
+
+Each matches a chapter word (`chapter`, `part`, `book`, `volume`, `section`…)
+followed by digits, Roman numerals, or a spelled-out number — plus standalone
+headings like `prologue`, `introduction`, `epilogue`. Contents-page and
+fallback labels are localised too.
+
+Two rules keep false positives down:
+
+- **A heading only counts at the start of a sentence**, so prose like "in this
+  chapter we will see…" does not split the book.
+- **Standalone words must be a whole sentence**, so "the conclusion was
+  obvious" is not mistaken for a `Conclusion` heading.
+
+Inflection is handled per language — Russian `третья`/`четвёртой`, German
+`zweite`/`zweiten`, Spanish `primero`/`primera`.
+
+If the declared language finds nothing, the other eight are tried before
+falling back to pause-based splitting, so a mislabelled file still works.
 
 ```bash
-python epub.py book.json --chapter-regex "(?P<title>Chapter\s+\d+)"
+python epub.py book.json --list-headings              # preview, all languages
+python epub.py book.json --language en                # force a language
+python epub.py book.json --chapter-regex "(?P<title>Sección\s+\d+)"
 ```
 
-PRs adding built-in patterns for more languages are welcome.
+`test_headings.py` covers every language with phrases that must match and prose
+that must not. PRs adding more languages are welcome — add a `LangSpec` to
+`LANGUAGES` in `epub.py` and a case to the test.
 
 ## Performance
 

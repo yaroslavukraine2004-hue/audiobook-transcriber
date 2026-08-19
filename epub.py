@@ -26,33 +26,148 @@ MIN_GAP_S = 1.8        # a shorter pause is never a chapter break
 # boundary -- far better than inferring one from a pause. Whisper writes ordinals
 # as words about as often as digits, so both forms have to be matched.
 # --------------------------------------------------------------------------
-_ORDINAL_STEMS = (
-    "перв|втор|трет|четв[её]рт|пят|шест|седьм|восьм|девят|десят|"
-    "одиннадцат|двенадцат|тринадцат|четырнадцат|пятнадцат|шестнадцат|"
-    "семнадцат|восемнадцат|девятнадцат|двадцат|тридцат|сороков"
-)
-_NUMBERED_KW = "глава|часть|ступень|раздел|книга|том|урок|лекция"
-_STANDALONE_KW = (
-    "введение|вступление|предисловие|пролог|эпилог|заключение|"
-    "послесловие|приложение|оглавление"
-)
+@dataclass(frozen=True)
+class LangSpec:
+    """Vocabulary needed to recognise a spoken chapter heading in one language."""
+    numbered: str      # words that take a number: chapter, part, book...
+    standalone: str    # words that are a heading by themselves: prologue...
+    counters: str      # ordinal/cardinal stems: first, one, перв, erste...
+    suffix: str        # inflection allowed after a counter stem
+    toc_title: str
+    intro_title: str
+    chapter_label: str
+
+
+LANGUAGES: dict[str, LangSpec] = {
+    "ru": LangSpec(
+        numbered="глава|часть|ступень|раздел|книга|том|урок|лекция",
+        standalone=("введение|вступление|предисловие|пролог|эпилог|"
+                    "заключение|послесловие|приложение|оглавление"),
+        counters=("перв|втор|трет|четв[её]рт|пят|шест|седьм|восьм|девят|десят|"
+                  "одиннадцат|двенадцат|тринадцат|четырнадцат|пятнадцат|"
+                  "шестнадцат|семнадцат|восемнадцат|девятнадцат|двадцат|"
+                  "тридцат|сороков"),
+        # Russian ordinals inflect heavily (третья, четвёртой, двадцатыми), so
+        # the stem is matched and a short ending is allowed to follow.
+        suffix=r"[а-яё]{0,4}",
+        toc_title="Оглавление", intro_title="Начало", chapter_label="Глава"),
+
+    "uk": LangSpec(
+        numbered="глава|розділ|частина|книга|том|урок|лекція",
+        standalone=("вступ|пролог|епілог|висновок|висновки|передмова|"
+                    "післямова|додаток|зміст"),
+        counters=("перш|друг|трет|четверт|п'ят|шост|сьом|восьм|дев'ят|десят|"
+                  "одинадцят|дванадцят|тринадцят|чотирнадцят|п'ятнадцят|"
+                  "двадцят|тридцят"),
+        suffix=r"[а-яіїєґ']{0,4}",
+        toc_title="Зміст", intro_title="Початок", chapter_label="Розділ"),
+
+    "en": LangSpec(
+        numbered="chapter|part|book|volume|section|lesson|act|episode",
+        standalone=("introduction|prologue|epilogue|conclusion|preface|"
+                    "foreword|afterword|appendix|contents"),
+        # English puts cardinals after the noun ("Chapter One") as often as
+        # ordinals ("the First Chapter"), so both are listed.
+        counters=("one|two|three|four|five|six|seven|eight|nine|ten|eleven|"
+                  "twelve|thirteen|fourteen|fifteen|sixteen|seventeen|"
+                  "eighteen|nineteen|twenty|thirty|forty|fifty|"
+                  "first|second|third|fourth|fifth|sixth|seventh|eighth|"
+                  "ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|"
+                  "fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|"
+                  "twentieth|thirtieth"),
+        suffix=r"(?:[- ](?:one|two|three|four|five|six|seven|eight|nine))?",
+        toc_title="Contents", intro_title="Beginning", chapter_label="Chapter"),
+
+    "es": LangSpec(
+        numbered="cap[íi]tulo|parte|libro|volumen|secci[óo]n|lecci[óo]n",
+        standalone=("introducci[óo]n|pr[óo]logo|ep[íi]logo|conclusi[óo]n|"
+                    "prefacio|ap[ée]ndice|[íi]ndice"),
+        counters=("uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|"
+                  "doce|trece|catorce|quince|dieciséis|dieciseis|veinte|"
+                  "primer|segund|tercer|cuart|quint|sext|s[ée]ptim|octav|"
+                  "noven|d[ée]cim"),
+        suffix=r"[oa]?s?",
+        toc_title="Índice", intro_title="Comienzo", chapter_label="Capítulo"),
+
+    "fr": LangSpec(
+        numbered="chapitre|partie|livre|volume|section|le[çc]on",
+        standalone=("introduction|prologue|[ée]pilogue|conclusion|pr[ée]face|"
+                    "avant-propos|annexe|sommaire"),
+        counters=("un|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|"
+                  "douze|treize|quatorze|quinze|seize|vingt|"
+                  "premi[èe]r|deuxi[èe]m|second|troisi[èe]m|quatri[èe]m|"
+                  "cinqui[èe]m|sixi[èe]m|septi[èe]m|huiti[èe]m|neuvi[èe]m|"
+                  "dixi[èe]m|onzi[èe]m|douzi[èe]m|vingti[èe]m"),
+        suffix=r"[e]?s?",
+        toc_title="Sommaire", intro_title="Début", chapter_label="Chapitre"),
+
+    "de": LangSpec(
+        numbered="kapitel|teil|buch|band|abschnitt|lektion",
+        standalone=("einleitung|prolog|epilog|schluss|vorwort|nachwort|"
+                    "anhang|inhalt|inhaltsverzeichnis"),
+        counters=("eins|zwei|drei|vier|f[üu]nf|sechs|sieben|acht|neun|zehn|"
+                  "elf|zw[öo]lf|dreizehn|vierzehn|f[üu]nfzehn|zwanzig|"
+                  "erste|zweite|dritte|vierte|f[üu]nfte|sechste|siebte|"
+                  "achte|neunte|zehnte"),
+        suffix=r"[nsrm]{0,2}",
+        toc_title="Inhalt", intro_title="Anfang", chapter_label="Kapitel"),
+
+    "it": LangSpec(
+        numbered="capitolo|parte|libro|volume|sezione|lezione",
+        standalone=("introduzione|prologo|epilogo|conclusione|prefazione|"
+                    "appendice|indice"),
+        counters=("uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci|"
+                  "undici|dodici|tredici|quattordici|quindici|venti|"
+                  "prim|second|terz|quart|quint|sest|settim|ottav|non|decim"),
+        suffix=r"[oaie]?",
+        toc_title="Indice", intro_title="Inizio", chapter_label="Capitolo"),
+
+    "pt": LangSpec(
+        numbered="cap[íi]tulo|parte|livro|volume|se[çc][ãa]o|li[çc][ãa]o",
+        standalone=("introdu[çc][ãa]o|pr[óo]logo|ep[íi]logo|conclus[ãa]o|"
+                    "pref[áa]cio|ap[êe]ndice|sum[áa]rio"),
+        counters=("um|dois|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|"
+                  "doze|treze|catorze|quinze|vinte|"
+                  "primeir|segund|terceir|quart|quint|sext|s[ée]tim|oitav|"
+                  "non|d[ée]cim"),
+        suffix=r"[oa]?s?",
+        toc_title="Sumário", intro_title="Início", chapter_label="Capítulo"),
+
+    "pl": LangSpec(
+        numbered="rozdzia[łl]|cz[ęe][śs][ćc]|ksi[ęe]ga|tom|lekcja",
+        standalone=("wst[ęe]p|prolog|epilog|zako[ńn]czenie|przedmowa|"
+                    "pos[łl]owie|dodatek|spis"),
+        counters=("pierwsz|drug|trzec|czwart|pi[ąa]t|sz[óo]st|si[óo]dm|[óo]sm|"
+                  "dziewi[ąa]t|dziesi[ąa]t|jedena[śs]t|dwuna[śs]t|dwudziest"),
+        suffix=r"[a-ząćęłńóśźż]{0,3}",
+        toc_title="Spis treści", intro_title="Początek", chapter_label="Rozdział"),
+}
+
+DEFAULT_LANG = "ru"
 
 # A heading only counts at the start of a sentence -- that single anchor is what
 # separates a real heading from prose like "в этой главе мы поговорим...".
 _SENTENCE_START = r"(?:^|(?<=[.!?…])\s+|(?<=\n)\s*)"
-_HEADING_RE = re.compile(
-    _SENTENCE_START
-    + r"(?P<title>(?:"
-    # Ordinals inflect: третья, четвёртой, двадцатыми. Match the stem, then let
-    # any short Cyrillic ending follow -- an explicit letter class keeps missing
-    # cases like the soft sign in "третья".
-    + rf"(?:{_NUMBERED_KW})\s+(?:\d{{1,3}}|(?:{_ORDINAL_STEMS})[а-яё]{{0,4}})"
-    # Standalone words are common nouns too ("заключение было очевидным"), so
-    # they only count when they stand alone as a sentence.
-    + rf"|(?:{_STANDALONE_KW})(?=\s*[.!?…]|\s*$)"
-    + r"))\b",
-    re.IGNORECASE | re.UNICODE,
-)
+
+
+def build_heading_re(lang: str = DEFAULT_LANG) -> re.Pattern:
+    """Compile the heading pattern for one language."""
+    spec = LANGUAGES.get(lang) or LANGUAGES[DEFAULT_LANG]
+    return re.compile(
+        _SENTENCE_START
+        + r"(?P<title>(?:"
+        # A counter may be digits, Roman numerals, or a spelled-out word.
+        + rf"(?:{spec.numbered})\s+"
+        + rf"(?:\d{{1,3}}|[IVXLCDM]{{1,7}}|(?:{spec.counters}){spec.suffix})"
+        # Standalone words are ordinary nouns too ("the conclusion was clear"),
+        # so they only count when they stand alone as a sentence.
+        + rf"|(?:{spec.standalone})(?=\s*[.!?…]|\s*$)"
+        + r"))\b",
+        re.IGNORECASE | re.UNICODE,
+    )
+
+
+_HEADING_RE = build_heading_re(DEFAULT_LANG)
 
 
 @dataclass
@@ -82,9 +197,10 @@ def _stamp(seconds: float) -> str:
 
 
 def detect_headings(segments: list[dict], pattern: re.Pattern | None = None,
-                    min_apart_s: float = 30.0) -> list[Heading]:
-    """Find spoken chapter announcements, e.g. 'Глава 1' / 'Часть вторая'."""
-    rx = pattern or _HEADING_RE
+                    min_apart_s: float = 30.0,
+                    lang: str = DEFAULT_LANG) -> list[Heading]:
+    """Find spoken chapter announcements, e.g. 'Глава 1' / 'Chapter Two'."""
+    rx = pattern or build_heading_re(lang)
     found: list[Heading] = []
     for i, seg in enumerate(segments):
         text = seg["text"].strip()
@@ -120,8 +236,11 @@ def _paragraphs(block: list[dict]) -> list[str]:
 
 
 def chapters_from_headings(segments: list[dict], headings: list[Heading],
-                           intro_title: str = "Начало") -> list[Chapter]:
+                           intro_title: str | None = None,
+                           lang: str = DEFAULT_LANG) -> list[Chapter]:
     """Cut at announced headings, titled with what the narrator actually said."""
+    spec = LANGUAGES.get(lang) or LANGUAGES[DEFAULT_LANG]
+    intro_title = intro_title or spec.intro_title
     bounds = [h.index for h in headings]
     titles = [h.title for h in headings]
 
@@ -141,8 +260,9 @@ def chapters_from_headings(segments: list[dict], headings: list[Heading],
 
 
 def split_chapters(segments: list[dict], min_chapter_s: float = MIN_CHAPTER_S,
-                   label: str = "Глава", mode: str = "auto",
+                   label: str | None = None, mode: str = "auto",
                    pattern: re.Pattern | None = None,
+                   lang: str = DEFAULT_LANG,
                    on_report=lambda msg: None) -> list[Chapter]:
     """Split into chapters. mode: auto | keywords | pauses.
 
@@ -152,14 +272,31 @@ def split_chapters(segments: list[dict], min_chapter_s: float = MIN_CHAPTER_S,
     if not segments:
         return []
 
+    spec = LANGUAGES.get(lang) or LANGUAGES[DEFAULT_LANG]
+    label = label or spec.chapter_label
+
     if mode in ("auto", "keywords"):
-        headings = detect_headings(segments, pattern)
+        headings = detect_headings(segments, pattern, lang=lang)
+
+        # A mislabelled language would silently produce zero headings, so when
+        # the declared one finds nothing, try the others before giving up.
+        if len(headings) < 2 and pattern is None:
+            for alt in LANGUAGES:
+                if alt == lang:
+                    continue
+                other = detect_headings(segments, lang=alt)
+                if len(other) > len(headings):
+                    headings, lang, spec = other, alt, LANGUAGES[alt]
+            if len(headings) >= 2:
+                on_report(f"headings: matched '{lang}' patterns, not the "
+                          "declared language")
+
         if len(headings) >= 2:
             on_report(f"headings: {len(headings)} spoken chapter markers found")
-            return chapters_from_headings(segments, headings)
+            return chapters_from_headings(segments, headings, lang=lang)
         if mode == "keywords":
             on_report("headings: none found — writing a single chapter")
-            return chapters_from_headings(segments, headings)
+            return chapters_from_headings(segments, headings, lang=lang)
         on_report(f"headings: only {len(headings)} found — falling back to pauses")
 
     return _split_by_pauses(segments, min_chapter_s, label)
@@ -221,7 +358,7 @@ span.toctime { font-size: .82em; color: #888; white-space: nowrap;
 """
 
 
-def _chapter_xhtml(ch: Chapter) -> str:
+def _chapter_xhtml(ch: Chapter, lang: str = DEFAULT_LANG) -> str:
     # Built without an f-string expression: escapes inside those are 3.12+ only.
     body = "\n".join(
         '  <p class="first">' + html.escape(p) + "</p>" if i == 0
@@ -230,7 +367,7 @@ def _chapter_xhtml(ch: Chapter) -> str:
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         '<!DOCTYPE html>\n'
-        '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ru" lang="ru">\n'
+        f'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="{lang}" lang="{lang}">\n'
         f'<head><meta charset="utf-8"/><title>{html.escape(ch.title)}</title>\n'
         '<link rel="stylesheet" type="text/css" href="style.css"/></head>\n'
         f'<body>\n  <h1>{html.escape(ch.title)}</h1>\n'
@@ -238,25 +375,28 @@ def _chapter_xhtml(ch: Chapter) -> str:
     )
 
 
-def _toc_xhtml(chapters: list[Chapter], names: list[str], title: str) -> str:
+def _toc_xhtml(chapters: list[Chapter], names: list[str], title: str,
+               lang: str = DEFAULT_LANG) -> str:
     """A *readable* contents page.
 
     nav.xhtml drives the reader's own menu but is normally excluded from the
     reading order, so without this the book has no visible contents at all.
     """
+    spec = LANGUAGES.get(lang) or LANGUAGES[DEFAULT_LANG]
     rows = "\n".join(
         f'    <li><a href="{n}">{html.escape(c.title)}</a>'
         f'<span class="tocdot"></span>'
         f'<span class="toctime">{_stamp(c.start)}</span></li>'
         for n, c in zip(names, chapters))
+    heading = html.escape(spec.toc_title)
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         '<!DOCTYPE html>\n'
-        '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ru" lang="ru">\n'
-        f'<head><meta charset="utf-8"/><title>Оглавление</title>\n'
+        f'<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="{lang}" lang="{lang}">\n'
+        f'<head><meta charset="utf-8"/><title>{heading}</title>\n'
         '<link rel="stylesheet" type="text/css" href="style.css"/></head>\n'
         '<body class="tocpage">\n'
-        f'  <h1 class="toch1">Оглавление</h1>\n'
+        f'  <h1 class="toch1">{heading}</h1>\n'
         f'  <p class="tocsub">{html.escape(title)}</p>\n'
         f'  <ol class="toclist">\n{rows}\n  </ol>\n'
         '</body>\n</html>\n'
@@ -269,7 +409,7 @@ def build_epub(segments: list[dict], out_path: Path, title: str,
                mode: str = "auto", pattern: re.Pattern | None = None,
                on_report=lambda msg: None) -> Path:
     chapters = split_chapters(segments, min_chapter_s, mode=mode,
-                              pattern=pattern, on_report=on_report)
+                              pattern=pattern, lang=language, on_report=on_report)
     if not chapters:
         raise ValueError("no segments to write")
 
@@ -367,11 +507,11 @@ def build_epub(segments: list[dict], out_path: Path, title: str,
         z.writestr("META-INF/container.xml", container)
         z.writestr("OEBPS/content.opf", opf)
         z.writestr("OEBPS/nav.xhtml", nav)
-        z.writestr("OEBPS/toc.xhtml", _toc_xhtml(chapters, names, title))
+        z.writestr("OEBPS/toc.xhtml", _toc_xhtml(chapters, names, title, language))
         z.writestr("OEBPS/toc.ncx", ncx)
         z.writestr("OEBPS/style.css", _CSS)
         for n, c in zip(names, chapters):
-            z.writestr(f"OEBPS/{n}", _chapter_xhtml(c))
+            z.writestr(f"OEBPS/{n}", _chapter_xhtml(c, language))
     return out_path
 
 
@@ -384,7 +524,9 @@ def main() -> int:
     ap.add_argument("json_file", type=Path)
     ap.add_argument("--title", default=None)
     ap.add_argument("--author", default="Расшифровка аудиокниги")
-    ap.add_argument("--language", default="ru")
+    ap.add_argument("--language", default=DEFAULT_LANG,
+                    choices=sorted(LANGUAGES) + ["other"],
+                    help="drives both EPUB metadata and heading detection")
     ap.add_argument("--chapter-minutes", type=float, default=15.0,
                     help="minimum chapter length for pause mode")
     ap.add_argument("--mode", choices=["auto", "keywords", "pauses"], default="auto",
@@ -400,17 +542,26 @@ def main() -> int:
                if args.chapter_regex else None)
 
     if args.list_headings:
-        found = detect_headings(segments, pattern)
-        print(f"{len(found)} headings detected:")
-        for h in found:
+        if pattern is not None:
+            langs = [(args.language, detect_headings(segments, pattern))]
+        else:
+            langs = [(code, detect_headings(segments, lang=code))
+                     for code in LANGUAGES]
+            langs.sort(key=lambda p: len(p[1]), reverse=True)
+        best = langs[0]
+        print(f"{len(best[1])} headings detected using '{best[0]}' patterns:")
+        for h in best[1]:
             print(f"  {_stamp(h.time):>8}  {h.title}")
+        others = [f"{c}:{len(v)}" for c, v in langs[1:] if v]
+        if others:
+            print("  other languages: " + ", ".join(others))
         return 0
 
     title = args.title or args.json_file.stem
     out = args.json_file.with_suffix(".epub")
     chapters = split_chapters(segments, args.chapter_minutes * 60,
                               mode=args.mode, pattern=pattern,
-                              on_report=lambda m: print(m))
+                              lang=args.language, on_report=lambda m: print(m))
     build_epub(segments, out, title, args.author, args.language,
                args.chapter_minutes * 60, args.mode, pattern)
     words = sum(c.words() for c in chapters)
