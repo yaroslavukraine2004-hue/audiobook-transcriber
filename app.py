@@ -276,6 +276,8 @@ class App:
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         if sys.platform == "win32":
             subprocess.Popen(["explorer", str(OUT_DIR)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(OUT_DIR)])
         else:
             subprocess.Popen(["xdg-open", str(OUT_DIR)])
 
